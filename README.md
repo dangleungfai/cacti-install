@@ -52,6 +52,36 @@ sudo ./install-cacti.sh
 安装完成后在浏览器访问：**https://你的服务器IP/cacti/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。  
 若已安装 Weathermap 插件，请在 **控制台 -> 插件管理** 中启用。
 
+若打开页面报 **FATAL: Connection to Cacti database failed**，请在服务器上执行（PHP 版本按实际，一般为 8.3）：
+```bash
+sudo apt-get install -y php8.3-mysql && sudo systemctl restart apache2
+```
+然后再访问 https://IP/cacti/ 。
+
+若 **Cacti 安装向导** 报错（PHP 模块、memory_limit、时区表、MySQL 配置），可在服务器上执行以下命令后刷新向导页面：
+```bash
+# PHP 扩展与 php.ini
+sudo apt-get install -y php8.3-intl php8.3-xml php8.3-gd php8.3-gmp php8.3-mbstring php8.3-ldap php8.3-snmp
+sudo sed -i 's/^;\?memory_limit\s*=.*/memory_limit = 400M/' /etc/php/8.3/apache2/php.ini
+sudo sed -i 's/^;\?max_execution_time\s*=.*/max_execution_time = 60/' /etc/php/8.3/apache2/php.ini
+# MySQL 时区表（将 root 密码换成你的）
+mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | mysql -u root -p mysql
+# 或 MariaDB：mariadb-tzinfo-to-sql /usr/share/zoneinfo | mysql -u root -p mysql
+sudo systemctl restart apache2
+```
+
+若向导提示 **PHP 模块 snmp（可选）未安装**，执行后刷新即可：
+```bash
+sudo apt-get install -y php8.3-snmp && sudo systemctl restart apache2
+```
+
+若向导提示 **RRDtool 二进制路径** 不正确（红叉），执行后刷新本页：
+```bash
+sudo apt-get install -y rrdtool
+# 确认路径
+which rrdtool   # 应输出 /usr/bin/rrdtool
+```
+
 ## 可选环境变量（安装）
 
 | 变量 | 默认值 | 说明 |
@@ -94,15 +124,15 @@ sudo ./upgrade-cacti.sh
 
 ## 安装脚本做了什么
 
-1. 安装 Apache、MariaDB、RRDtool、SNMP、PHP 8.x 及扩展、git、openssl
-2. 启动 MariaDB
+1. 安装 Apache、MariaDB、RRDtool、SNMP、PHP 8.x 及扩展（含 intl）、git、openssl
+2. 启动 MariaDB；**填充 MySQL 时区表**（满足安装向导）
 3. 从 GitHub 克隆 Cacti（默认 1.2.x 稳定版）到 `/var/www/html/cacti`
 4. 创建数据库 `cacti`、用户 `cactiuser` 并授权（密码为你输入的）
-5. 导入 `cacti.sql` 初始数据
+5. 导入 `cacti.sql`；写入 **MariaDB 推荐配置** `/etc/mysql/mariadb.conf.d/99-cacti.cnf`（collation、innodb_buffer_pool 约 25% 内存、max_heap_table_size/tmp_table_size=64M、innodb_doublewrite=OFF）并重启 MariaDB
 6. 生成 `include/config.php` 并写入数据库配置
 7. 生成自签名 HTTPS 证书（`/etc/ssl/cacti/`，有效期 8250 天约 22 年）
-8. 配置 Apache：默认站点 80 跳 443，443 使用 DocumentRoot `/var/www/html`，`/cacti` 别名指向 `/var/www/html/cacti`，即访问 **https://IP/cacti/**
-9. 设置目录属主为 `www-data`，启用 ssl、rewrite
+8. 配置 Apache：默认站点 80 跳 443，443 使用 DocumentRoot `/var/www/html`，`/cacti` 别名指向 `/var/www/html/cacti`，即访问 **https://IP/cacti/**；设置 **php.ini**（memory_limit=400M、max_execution_time=60）
+9. 设置目录属主为 `www-data`；**配置 snmpd**（127.0.0.1 可用 community `public` 供 Cacti 本机 SNMP 轮询）
 10. 配置每 5 分钟轮询：`/etc/cron.d/cacti` 或 systemd `cactid`
 11. **自动安装 Weathermap 插件**到 `plugins/weathermap`（Cacti Group 官方 fork），需在控制台启用
 

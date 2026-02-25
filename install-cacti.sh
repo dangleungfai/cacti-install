@@ -203,6 +203,7 @@ install_php_pkgs() {
 		"$pkg"-zip \
 		"$pkg"-ldap \
 		"$pkg"-curl \
+		"$pkg"-intl \
 		libapache2-mod-"$pkg" \
 		git \
 		openssl \
@@ -213,8 +214,30 @@ if ! install_php_pkgs; then
 	apt-get install -y --no-install-recommends \
 		apache2 rrdtool mariadb-server mariadb-client snmp snmpd \
 		php php-mysql php-snmp php-xml php-mbstring php-json \
-		php-gd php-gmp php-zip php-ldap php-curl \
+		php-gd php-gmp php-zip php-ldap php-curl php-intl \
 		git openssl
+fi
+# 必须确保 PHP 有 MySQL 扩展，否则 Cacti 会报 "Connection to Cacti database failed"
+if ! php -m 2>/dev/null | grep -qE 'mysqli|pdo_mysql'; then
+	echo "      安装 PHP MySQL 扩展 (php$PHP_VER-mysql)..."
+	apt-get install -y "php$PHP_VER-mysql" 2>/dev/null || apt-get install -y php-mysql
+fi
+# 安装向导可选模块：PHP SNMP 扩展（用于 SNMP 轮询）
+if ! php -m 2>/dev/null | grep -q '^snmp$'; then
+	echo "      安装 PHP SNMP 扩展 (php$PHP_VER-snmp)..."
+	apt-get install -y "php$PHP_VER-snmp" 2>/dev/null || apt-get install -y php-snmp
+fi
+# 确保 RRDtool 已安装且可执行（安装向导「关键可执行程序」步骤要求）
+if [[ ! -x /usr/bin/rrdtool ]]; then
+	echo "      安装 RRDtool..."
+	apt-get install -y rrdtool
+fi
+# Cacti 安装向导要求：PHP memory_limit>=400M、max_execution_time>=60
+PHP_INI_APACHE="/etc/php/${PHP_VER}/apache2/php.ini"
+if [[ -f "$PHP_INI_APACHE" ]]; then
+	sed -i 's/^;\?memory_limit\s*=.*/memory_limit = 400M/' "$PHP_INI_APACHE"
+	sed -i 's/^;\?max_execution_time\s*=.*/max_execution_time = 60/' "$PHP_INI_APACHE"
+	echo "      已设置 php.ini: memory_limit=400M, max_execution_time=60"
 fi
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
@@ -321,6 +344,42 @@ else
 	echo "      未找到 cacti.sql，跳过。"
 fi
 
+# 填充 MySQL 时区表（Cacti 安装向导要求）
+echo "      填充 MySQL 时区表..."
+set_mysql_cmd
+if command -v mariadb-tzinfo-to-sql &>/dev/null; then
+	mariadb-tzinfo-to-sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || true
+elif command -v mysql_tzinfo_to_sql &>/dev/null; then
+	mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || true
+fi
+
+# MariaDB 推荐配置（满足 Cacti 安装向导：collation、innodb、heap/tmp 表）
+MARIADB_CONF_D="/etc/mysql/mariadb.conf.d"
+if [[ -d "$MARIADB_CONF_D" ]]; then
+	# innodb_buffer_pool_size：建议 25% 系统内存，至少 256M，此处取 512M（可按机器内存自行调大）
+	MEM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
+	if [[ "$MEM_KB" -gt 0 ]]; then
+		MEM_M=$((MEM_KB / 1024))
+		POOL_M=$((MEM_M * 25 / 100))
+		[[ $POOL_M -lt 256 ]] && POOL_M=256
+		[[ $POOL_M -gt 2048 ]] && POOL_M=2048
+	else
+		POOL_M=512
+	fi
+	cat > "$MARIADB_CONF_D/99-cacti.cnf" <<EOMYSQL
+# Cacti 安装向导推荐
+[mysqld]
+character_set_server = utf8mb4
+collation_server = utf8mb4_unicode_ci
+innodb_doublewrite = OFF
+innodb_buffer_pool_size = ${POOL_M}M
+max_heap_table_size = 64M
+tmp_table_size = 64M
+EOMYSQL
+	systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
+	echo "      已写入 MariaDB 推荐配置（innodb_buffer_pool=${POOL_M}M, heap/tmp=64M）并重启"
+fi
+
 # ------------------------- 6. 配置文件 config.php -------------------------
 echo "[6/11] 生成 config.php..."
 CONFIG_DIR="$CACTI_PATH/include"
@@ -406,6 +465,23 @@ for d in log rra cache resource scripts; do
 done
 systemctl restart apache2 2>/dev/null || systemctl restart apache 2>/dev/null || true
 
+# 配置 snmpd 供 Cacti 本机 SNMP 轮询（安装向导可选模块提示）
+if command -v snmpd &>/dev/null; then
+	SNMPD_CONF_D="/etc/snmp/snmpd.conf.d"
+	if [[ -d "$SNMPD_CONF_D" ]]; then
+		cat > "$SNMPD_CONF_D/cacti.conf" <<'EOSNMP'
+# Cacti 本机 SNMP 轮询：允许 127.0.0.1 使用 community public 只读（可改为自定义 community）
+rocommunity public 127.0.0.1
+EOSNMP
+	else
+		grep -q 'rocommunity public 127.0.0.1' /etc/snmp/snmpd.conf 2>/dev/null || \
+			echo -e "\n# Cacti 本机 SNMP\nrocommunity public 127.0.0.1" >> /etc/snmp/snmpd.conf
+	fi
+	systemctl enable snmpd 2>/dev/null || true
+	systemctl restart snmpd 2>/dev/null || true
+	echo "      已配置 snmpd（127.0.0.1 可用 community public 轮询）"
+fi
+
 # ------------------------- 10. 轮询任务 -------------------------
 echo "[10/11] 配置 Cacti 轮询..."
 if [[ "$POLLER_METHOD" == "systemd" ]]; then
@@ -461,6 +537,9 @@ echo "  访问地址: https://${IP:-localhost}/cacti/"
 echo "  （HTTP 会自动跳转到 HTTPS）"
 echo ""
 echo "  首次访问按向导完成初始化；默认登录 admin / admin（会强制改密）"
+echo ""
+echo "  若页面报 Connection to Cacti database failed，请在服务器执行："
+echo "    sudo apt-get install -y php${PHP_VER}-mysql && sudo systemctl restart apache2"
 echo ""
 if [[ "$INSTALL_WEATHERMAP" == "1" ]]; then
 	echo "  已安装 Weathermap 插件，请在 控制台 -> 插件管理 中启用后使用。"
