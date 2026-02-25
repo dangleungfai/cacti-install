@@ -5,7 +5,7 @@
 #
 # 特性:
 #   - HTTP 自动跳转 HTTPS，使用自签名证书（最长有效期）
-#   - 访问地址为 https://服务器IP/（根路径，无 /cacti）
+#   - 访问地址为 https://服务器IP/cacti/（默认安装目录，不做根路径跳转）
 #   - 安装过程中交互输入数据库密码
 #   - 默认安装 Cacti 最新稳定版 (1.2.x)，可选开发版 (CACTI_BRANCH=develop)
 #   - 自动安装 Weathermap 插件 (Cacti Group 官方 fork)
@@ -16,7 +16,7 @@
 
 set -e
 
-# ------------------------- 固定配置（站点根即 Cacti）-------------------------
+# ------------------------- 固定配置（默认 /cacti/ 目录）-------------------------
 CACTI_WEB_USER="www-data"
 CACTI_PATH="/var/www/html/cacti"
 # 默认最新稳定版；可选 CACTI_BRANCH=develop 安装开发版
@@ -106,7 +106,7 @@ fi
 
 echo ""
 echo "  安装路径: $CACTI_PATH"
-echo "  访问地址: https://本机IP/（根路径，自动跳 HTTPS）"
+echo "  访问地址: https://本机IP/cacti/（自动跳 HTTPS）"
 echo "  Cacti 分支: $CACTI_BRANCH"
 echo "=============================================="
 
@@ -179,6 +179,7 @@ install_php_pkgs() {
 		"$pkg"-zip \
 		"$pkg"-ldap \
 		"$pkg"-curl \
+		libapache2-mod-"$pkg" \
 		git \
 		openssl \
 		>/dev/null 2>&1 || true
@@ -322,8 +323,8 @@ chmod 640 "$SSL_DIR/cacti.key"
 chmod 644 "$SSL_DIR/cacti.crt"
 chown root:root "$SSL_DIR/cacti.key" "$SSL_DIR/cacti.crt"
 
-# ------------------------- 8. Apache：根路径即 Cacti + HTTP 跳 HTTPS -------------------------
-echo "[8/11] 配置 Apache（站点根为 Cacti，HTTP 跳转 HTTPS）..."
+# ------------------------- 8. Apache：/cacti 目录 + HTTP 跳 HTTPS -------------------------
+echo "[8/11] 配置 Apache（默认 /cacti/ 目录，HTTP 跳转 HTTPS）..."
 if ! dpkg -s apache2 &>/dev/null; then
 	echo "      安装 apache2..."
 	apt-get install -y apache2
@@ -331,7 +332,7 @@ fi
 a2enmod ssl rewrite 2>/dev/null || true
 CONF_D="/etc/apache2/sites-available"
 mkdir -p "$CONF_D"
-# 默认站点改为：80 跳 443，443 的 DocumentRoot 为 Cacti
+# 80 跳 443；443 使用默认 DocumentRoot，/cacti 指向 Cacti 目录
 CONF_AVAILABLE="$CONF_D/cacti-default.conf"
 cat > "$CONF_AVAILABLE" <<'EOCONF'
 # HTTP -> HTTPS
@@ -340,10 +341,11 @@ cat > "$CONF_AVAILABLE" <<'EOCONF'
 	Redirect permanent / https://%{HTTP_HOST}/
 </VirtualHost>
 
-# HTTPS，站点根即 Cacti
+# HTTPS，默认目录访问 https://IP/cacti/
 <VirtualHost *:443>
 	ServerName _
-	DocumentRoot /var/www/html/cacti
+	DocumentRoot /var/www/html
+	Alias /cacti /var/www/html/cacti
 	<Directory /var/www/html/cacti>
 		Options FollowSymLinks
 		AllowOverride All
@@ -421,7 +423,7 @@ echo ""
 echo "=============================================="
 echo "  Cacti 安装完成"
 echo "=============================================="
-echo "  访问地址: https://${IP:-localhost}/"
+echo "  访问地址: https://${IP:-localhost}/cacti/"
 echo "  （HTTP 会自动跳转到 HTTPS）"
 echo ""
 echo "  首次访问按向导完成初始化；默认登录 admin / admin（会强制改密）"

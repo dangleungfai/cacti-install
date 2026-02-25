@@ -5,7 +5,7 @@
 ## 特性
 
 - **HTTPS 默认**：HTTP 自动 301 跳转到 HTTPS，使用自签名证书（默认 8250 天约 22 年，接近常见 OpenSSL 自签名上限）
-- **根路径访问**：安装后访问 **https://服务器IP/**，无需 `/cacti` 路径
+- **默认目录访问**：安装后访问 **https://服务器IP/cacti/**（不做根路径跳转）
 - **交互式密码**：安装过程中提示输入 MySQL root 密码与 Cacti 数据库密码，不通过环境变量传密
 - **系统要求**：面向 **Ubuntu 24.04 及以上**
 - **最新版本**：默认安装 Cacti **最新稳定版**（1.2.x 分支）；可通过环境变量 `CACTI_BRANCH=develop` 安装开发版
@@ -42,7 +42,7 @@ sudo ./install-cacti.sh
 2. **Cacti 数据库用户 cactiuser 的密码**（回车 = 默认 `cactiuser`）
 
 也可输入自定义密码（会要求再输入一次确认）。  
-安装完成后在浏览器访问：**https://你的服务器IP/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。  
+安装完成后在浏览器访问：**https://你的服务器IP/cacti/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。  
 若已安装 Weathermap 插件，请在 **控制台 -> 插件管理** 中启用。
 
 ## 可选环境变量（安装）
@@ -93,7 +93,7 @@ sudo ./upgrade-cacti.sh
 5. 导入 `cacti.sql` 初始数据
 6. 生成 `include/config.php` 并写入数据库配置
 7. 生成自签名 HTTPS 证书（`/etc/ssl/cacti/`，有效期 8250 天约 22 年）
-8. 配置 Apache：默认站点 80 跳 443，443 的 DocumentRoot 为 `/var/www/html/cacti`，即站点根即 Cacti
+8. 配置 Apache：默认站点 80 跳 443，443 使用 DocumentRoot `/var/www/html`，`/cacti` 别名指向 `/var/www/html/cacti`，即访问 **https://IP/cacti/**
 9. 设置目录属主为 `www-data`，启用 ssl、rewrite
 10. 配置每 5 分钟轮询：`/etc/cron.d/cacti` 或 systemd `cactid`
 11. **自动安装 Weathermap 插件**到 `plugins/weathermap`（Cacti Group 官方 fork），需在控制台启用
