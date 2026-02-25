@@ -227,18 +227,27 @@ if ! php -m 2>/dev/null | grep -q '^snmp$'; then
 	echo "      安装 PHP SNMP 扩展 (php$PHP_VER-snmp)..."
 	apt-get install -y "php$PHP_VER-snmp" 2>/dev/null || apt-get install -y php-snmp
 fi
+# 安装向导必须模块：gd/gmp/intl/ldap/mbstring/xml(simplexml)，缺一不可
+for mod in gd gmp intl ldap mbstring xml; do
+	if ! php -m 2>/dev/null | grep -q "^${mod}$"; then
+		echo "      安装 PHP 扩展 (php$PHP_VER-${mod})..."
+		apt-get install -y "php$PHP_VER-${mod}" 2>/dev/null || apt-get install -y "php-${mod}"
+	fi
+done
 # 确保 RRDtool 已安装且可执行（安装向导「关键可执行程序」步骤要求）
 if [[ ! -x /usr/bin/rrdtool ]]; then
 	echo "      安装 RRDtool..."
 	apt-get install -y rrdtool
 fi
-# Cacti 安装向导要求：PHP memory_limit>=400M、max_execution_time>=60
-PHP_INI_APACHE="/etc/php/${PHP_VER}/apache2/php.ini"
-if [[ -f "$PHP_INI_APACHE" ]]; then
-	sed -i 's/^;\?memory_limit\s*=.*/memory_limit = 400M/' "$PHP_INI_APACHE"
-	sed -i 's/^;\?max_execution_time\s*=.*/max_execution_time = 60/' "$PHP_INI_APACHE"
-	echo "      已设置 php.ini: memory_limit=400M, max_execution_time=60"
-fi
+# Cacti 安装向导要求：PHP memory_limit>=400M、max_execution_time>=60（Apache 与 CLI 均设置）
+for ini_sapi in apache2 cli; do
+	PHP_INI="/etc/php/${PHP_VER}/${ini_sapi}/php.ini"
+	if [[ -f "$PHP_INI" ]]; then
+		sed -i 's/^;\?memory_limit\s*=.*/memory_limit = 400M/' "$PHP_INI"
+		sed -i 's/^;\?max_execution_time\s*=.*/max_execution_time = 60/' "$PHP_INI"
+	fi
+done
+echo "      已设置 php.ini (apache2+cli): memory_limit=400M, max_execution_time=60"
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
 echo "[2/11] 启动 MariaDB..."
