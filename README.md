@@ -8,7 +8,8 @@
 - **根路径访问**：安装后访问 **https://服务器IP/**，无需 `/cacti` 路径
 - **交互式密码**：安装过程中提示输入 MySQL root 密码与 Cacti 数据库密码，不通过环境变量传密
 - **系统要求**：面向 **Ubuntu 24.04 及以上**
-- **最新版本**：默认安装 Cacti **develop** 分支（最新开发版）；可选 `CACTI_BRANCH=1.2.x` 使用稳定版
+- **最新版本**：默认安装 Cacti **最新稳定版**（1.2.x 分支）；安装过程中可选安装开发版（develop）
+- **Weathermap 插件**：脚本**自动安装** [Cacti Group 官方 Weathermap 插件](https://github.com/Cacti/plugin_weathermap)，安装后需在 Cacti 控制台 -> 插件管理 中启用
 - **一键升级**：`upgrade-cacti.sh` 可升级到最新代码，**不丢数据**（备份数据库与 config，保留 rra/plugins）
 
 ## 要求
@@ -28,14 +29,18 @@ sudo ./install-cacti.sh
 
 1. **MySQL/MariaDB root 密码**（未设置则直接回车）
 2. **Cacti 数据库用户密码**（`cactiuser` 的密码，需输入两次）
+3. **是否安装开发版 Cacti**（回车=稳定版 1.2.x，输入 y=开发版 develop）
 
-安装完成后在浏览器访问：**https://你的服务器IP/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。
+安装完成后在浏览器访问：**https://你的服务器IP/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。  
+若已安装 Weathermap 插件，请在 **控制台 -> 插件管理** 中启用。
 
 ## 可选环境变量（安装）
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `CACTI_BRANCH` | develop | Git 分支（develop=最新，1.2.x=稳定） |
+| `CACTI_BRANCH` | 1.2.x | Git 分支（1.2.x=稳定版，develop=开发版） |
+| `INSTALL_WEATHERMAP` | 1 | 是否安装 Weathermap 插件（1=安装，0=不安装） |
+| `WEATHERMAP_PLUGIN_BRANCH` | develop | Weathermap 插件分支 |
 | `POLLER_METHOD` | cron | 轮询方式：`cron` 或 `systemd` |
 
 安装脚本会交互询问数据库密码，一般无需传环境变量。若需非交互（不推荐），可自行修改脚本或配合 expect 使用。
@@ -72,7 +77,7 @@ sudo ./upgrade-cacti.sh
 
 1. 安装 Apache、MariaDB、RRDtool、SNMP、PHP 8.x 及扩展、git、openssl
 2. 启动 MariaDB
-3. 从 GitHub 克隆 Cacti（默认 develop 分支）到 `/var/www/html/cacti`
+3. 从 GitHub 克隆 Cacti（默认 1.2.x 稳定版）到 `/var/www/html/cacti`
 4. 创建数据库 `cacti`、用户 `cactiuser` 并授权（密码为你输入的）
 5. 导入 `cacti.sql` 初始数据
 6. 生成 `include/config.php` 并写入数据库配置
@@ -80,6 +85,7 @@ sudo ./upgrade-cacti.sh
 8. 配置 Apache：默认站点 80 跳 443，443 的 DocumentRoot 为 `/var/www/html/cacti`，即站点根即 Cacti
 9. 设置目录属主为 `www-data`，启用 ssl、rewrite
 10. 配置每 5 分钟轮询：`/etc/cron.d/cacti` 或 systemd `cactid`
+11. **自动安装 Weathermap 插件**到 `plugins/weathermap`（Cacti Group 官方 fork），需在控制台启用
 
 ## 参考
 
