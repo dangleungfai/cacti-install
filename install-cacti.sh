@@ -227,6 +227,21 @@ if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
 	fi
 fi
+# 先测试连接，失败时打印错误并退出
+set +e
+_err=$(run_mysql -e "SELECT 1" 2>&1)
+_ret=$?
+set -e
+if [[ $_ret -ne 0 ]]; then
+	echo ""
+	echo "错误: 无法连接 MariaDB/MySQL，安装中断。"
+	echo "详情: $_err"
+	echo ""
+	echo "请检查: 1) systemctl status mariadb  确认服务已启动"
+	echo "        2) root 密码是否正确（当前使用: $MYSQL_ROOT_PASSWORD）"
+	echo "        3) 手动测试: mysql -u root -p -e \"SELECT 1\" 或 mariadb -u root -p -e \"SELECT 1\""
+	exit 1
+fi
 run_mysql <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`$CACTI_DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$CACTI_DB_USER'@'localhost' IDENTIFIED BY '$CACTI_DB_PASS';

@@ -20,7 +20,18 @@
 
 ## 快速安装
 
+执行安装脚本前，请先更新软件源并安装 git：
+
 ```bash
+apt update
+apt install -y git
+```
+
+然后克隆仓库并运行安装脚本：
+
+```bash
+git clone https://github.com/dangleungfai/cacti-install.git
+cd cacti-install
 chmod +x install-cacti.sh
 sudo ./install-cacti.sh
 ```
