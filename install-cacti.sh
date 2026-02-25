@@ -245,7 +245,7 @@ echo "[4/11] 配置数据库..."
 if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 	set +e
 	set_mysql_cmd
-	local try_conn=("$MYSQL_CMD" -u root)
+	try_conn=("$MYSQL_CMD" -u root)
 	[[ -n "$MYSQL_SOCKET" ]] && try_conn+=(--socket="$MYSQL_SOCKET") || try_conn+=(-h 127.0.0.1)
 	if "${try_conn[@]}" -e "SELECT 1" < /dev/null &>/dev/null; then
 		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" < /dev/null 2>/dev/null || true
