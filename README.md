@@ -2,6 +2,13 @@
 
 基于 [Cacti 官方文档 Installing-Under-Ubuntu-Debian](https://docs.cacti.net/Installing-Under-Ubuntu-Debian.md) 的一键安装与升级脚本。
 
+## 为何使用 PHP 8（官方文档是 PHP 7）
+
+- 官方文档里的 `php7.0`、`php-mysql` 等是针对**旧版 Ubuntu/Debian**（自带 PHP 7 的版本）的。
+- **Ubuntu 24.04 官方源里已没有 PHP 7**，只有 PHP 8.x（默认 8.3），因此本脚本在 24.04 上使用 PHP 8 是必然选择；Cacti 1.2.x 支持 PHP 8。
+- 若访问 **https://IP/cacti/** 时浏览器里看到的是 **PHP 源码**而不是页面，原因是 **Apache 没有执行 PHP**（未正确启用 mod_php 或未对 `/cacti` 目录设置处理器），**与 PHP 7/8 无关**。脚本已通过 `SetHandler application/x-httpd-php` 和 `a2enmod php*` 修复。
+- 如需与官方文档一致使用 **PHP 7.4**，请在 **Ubuntu 22.04** 上使用：`sudo USE_PHP7=1 ./install-cacti.sh`（会添加 ondrej/php PPA 并安装 php7.4）。
+
 ## 特性
 
 - **HTTPS 默认**：HTTP 自动 301 跳转到 HTTPS，使用自签名证书（默认 8250 天约 22 年，接近常见 OpenSSL 自签名上限）
@@ -50,6 +57,7 @@ sudo ./install-cacti.sh
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `CACTI_BRANCH` | 1.2.x | Git 分支（1.2.x=稳定版，develop=开发版） |
+| `USE_PHP7` | 未设置 | 设为 `1` 时在 Ubuntu 20.04/22.04 上使用 PHP 7.4（添加 ondrej/php PPA，与官方文档一致） |
 | `INSTALL_WEATHERMAP` | 1 | 是否安装 Weathermap 插件（1=安装，0=不安装） |
 | `WEATHERMAP_PLUGIN_BRANCH` | develop | Weathermap 插件分支 |
 | `POLLER_METHOD` | cron | 轮询方式：`cron` 或 `systemd` |

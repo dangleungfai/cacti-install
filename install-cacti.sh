@@ -34,8 +34,13 @@ POLLER_METHOD="${POLLER_METHOD:-cron}"
 MYSQL_ROOT_PASSWORD=""
 CACTI_DB_PASS=""
 
-# 检测 PHP 版本 (Ubuntu 24.04 为 8.3)
+# 检测 PHP 版本 (Ubuntu 24.04 仅提供 PHP 8；可选 USE_PHP7=1 在 22.04 下用 PHP 7.4)
 detect_php() {
+	if [[ -n "$USE_PHP7" ]] && [[ "$USE_PHP7" == "1" ]]; then
+		for v in 7.4 7.3; do
+			if command -v "php$v" &>/dev/null; then echo "$v"; return; fi
+		done
+	fi
 	for v in 8.4 8.3 8.2 8.1; do
 		if command -v "php$v" &>/dev/null; then echo "$v"; return; fi
 	done
@@ -156,7 +161,26 @@ run_mysql() {
 # ------------------------- 1. 安装 LAMP 与依赖 -------------------------
 echo "[1/11] 更新软件源并安装依赖..."
 apt-get update -qq
-PHP_VER=$(detect_php)
+# 可选：与官方文档一致使用 PHP 7（仅 Ubuntu 20.04/22.04，需 PPA）
+if [[ -n "$USE_PHP7" ]] && [[ "$USE_PHP7" == "1" ]]; then
+	if [[ -f /etc/os-release ]]; then
+		. /etc/os-release
+		if [[ "$ID" == "ubuntu" ]]; then
+			case "${VERSION_ID:-0}" in
+				20.04|22.04) ;;
+				*) echo "      警告: USE_PHP7=1 建议在 Ubuntu 20.04/22.04 使用，当前 $PRETTY_NAME 将尝试 PPA 安装 PHP 7.4";;
+			esac
+		fi
+	fi
+	echo "      添加 ondrej/php PPA 以安装 PHP 7.4..."
+	apt-get install -y software-properties-common
+	add-apt-repository -y ppa:ondrej/php
+	apt-get update -qq
+	PHP_VER="7.4"
+else
+	PHP_VER=$(detect_php)
+fi
+[[ -z "$PHP_VER" ]] && PHP_VER=$(detect_php)
 echo "      使用 PHP 版本: $PHP_VER"
 
 install_php_pkgs() {
@@ -351,6 +375,9 @@ cat > "$CONF_AVAILABLE" <<'EOCONF'
 		AllowOverride All
 		Require all granted
 		DirectoryIndex index.php
+		<FilesMatch \.php$>
+			SetHandler application/x-httpd-php
+		</FilesMatch>
 	</Directory>
 	SSLEngine on
 	SSLCertificateFile /etc/ssl/cacti/cacti.crt
@@ -363,6 +390,13 @@ EOCONF
 # 禁用默认站点并启用本配置
 a2dissite 000-default.conf 2>/dev/null || true
 a2ensite cacti-default.conf 2>/dev/null || true
+# 确保 Apache 能执行 PHP（/cacti 下 .php 必须被解释，否则浏览器会看到源码）
+a2enmod "php$PHP_VER" 2>/dev/null || true
+if [[ ! -L /etc/apache2/mods-enabled/php${PHP_VER}.load ]]; then
+	echo "      启用 Apache PHP 模块 php$PHP_VER..."
+	apt-get install -y "libapache2-mod-php$PHP_VER" 2>/dev/null || true
+	a2enmod "php$PHP_VER" 2>/dev/null || true
+fi
 
 # ------------------------- 9. 权限与重启 Apache -------------------------
 echo "[9/11] 设置目录权限..."
