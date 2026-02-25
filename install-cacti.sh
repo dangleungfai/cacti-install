@@ -227,21 +227,21 @@ if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
 	fi
 fi
-# 先测试连接，失败时打印错误并退出
+# 先测试连接，失败时错误直接输出到终端并退出
 set +e
-_err=$(run_mysql -e "SELECT 1" 2>&1)
+run_mysql -e "SELECT 1"
 _ret=$?
 set -e
 if [[ $_ret -ne 0 ]]; then
 	echo ""
-	echo "错误: 无法连接 MariaDB/MySQL，安装中断。"
-	echo "详情: $_err"
-	echo ""
-	echo "请检查: 1) systemctl status mariadb  确认服务已启动"
-	echo "        2) root 密码是否正确（当前使用: $MYSQL_ROOT_PASSWORD）"
-	echo "        3) 手动测试: mysql -u root -p -e \"SELECT 1\" 或 mariadb -u root -p -e \"SELECT 1\""
+	echo "错误: 无法连接 MariaDB/MySQL，安装中断。请检查上方报错。"
+	echo "建议: 1) systemctl status mariadb  确认服务已启动"
+	echo "      2) root 密码是否正确（当前使用: $MYSQL_ROOT_PASSWORD）"
+	echo "      3) 手动测试: mysql -u root -p -e \"SELECT 1\""
 	exit 1
 fi
+# 创建数据库与用户，失败时保留报错并退出
+set +e
 run_mysql <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`$CACTI_DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$CACTI_DB_USER'@'localhost' IDENTIFIED BY '$CACTI_DB_PASS';
@@ -249,6 +249,13 @@ GRANT ALL PRIVILEGES ON \`$CACTI_DB_NAME\`.* TO '$CACTI_DB_USER'@'localhost';
 GRANT SELECT ON mysql.time_zone_name TO '$CACTI_DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
+_ret=$?
+set -e
+if [[ $_ret -ne 0 ]]; then
+	echo ""
+	echo "错误: 创建数据库/用户失败，请根据上方报错排查后重试。"
+	exit 1
+fi
 
 # ------------------------- 5. 导入 cacti.sql -------------------------
 echo "[5/11] 导入 Cacti 初始数据..."
