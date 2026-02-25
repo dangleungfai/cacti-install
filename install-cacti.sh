@@ -346,14 +346,15 @@ fi
 
 # 填充 MySQL 时区表（Cacti 安装向导要求；失败不中断安装）
 echo "      填充 MySQL 时区表..."
-set_mysql_cmd
-set +e
-if command -v mariadb-tzinfo-to-sql &>/dev/null; then
-	mariadb-tzinfo-to-sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行: mariadb-tzinfo-to-sql /usr/share/zoneinfo | mysql -u root -p mysql"
-elif command -v mysql_tzinfo_to_sql &>/dev/null; then
-	mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行"
-fi
-set -e
+( set +e
+  set_mysql_cmd
+  if command -v mariadb-tzinfo-to-sql &>/dev/null; then
+    mariadb-tzinfo-to-sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行: mariadb-tzinfo-to-sql /usr/share/zoneinfo | mysql -u root -p mysql"
+  elif command -v mysql_tzinfo_to_sql &>/dev/null; then
+    mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行"
+  fi
+)
+true
 
 # MariaDB 推荐配置（满足 Cacti 安装向导：collation、innodb、heap/tmp 表）
 MARIADB_CONF_D="/etc/mysql/mariadb.conf.d"
