@@ -197,6 +197,7 @@ if [[ ! -d /var/lib/mysql/mysql ]]; then
 	mariadb-install-db --user="$MYSQL_OWNER" 2>/dev/null || mysql_install_db --user="$MYSQL_OWNER" 2>/dev/null || true
 fi
 systemctl enable mariadb 2>/dev/null || systemctl enable mysql 2>/dev/null || true
+systemctl daemon-reload 2>/dev/null || true
 systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 	sleep 2
@@ -205,6 +206,13 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 	[[ -S /tmp/mysql.sock ]] && break
 	systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
 done
+# 若仍无 socket，多等几秒（首次启动可能较慢）
+if [[ ! -S /run/mysqld/mysqld.sock ]] && [[ ! -S /var/run/mysqld/mysqld.sock ]] && [[ ! -S /tmp/mysql.sock ]]; then
+	echo "      等待 MariaDB 首次启动..."
+	sleep 10
+	systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
+	sleep 5
+fi
 
 # ------------------------- 3. 克隆 Cacti（最新版本）-------------------------
 echo "[3/11] 下载 Cacti ($CACTI_BRANCH)..."
