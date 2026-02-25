@@ -184,6 +184,11 @@ fi
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
 echo "[2/11] 启动 MariaDB..."
+# 确保已安装服务端（步骤 1 若仅部分成功可能只装了 client）
+if ! dpkg -s mariadb-server &>/dev/null; then
+	echo "      安装 mariadb-server..."
+	apt-get install -y mariadb-server
+fi
 mkdir -p /run/mysqld /var/run/mysqld 2>/dev/null || true
 MYSQL_OWNER="mysql"
 id mysql &>/dev/null || MYSQL_OWNER="mariadb"
