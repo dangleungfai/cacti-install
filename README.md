@@ -8,7 +8,7 @@
 - **根路径访问**：安装后访问 **https://服务器IP/**，无需 `/cacti` 路径
 - **交互式密码**：安装过程中提示输入 MySQL root 密码与 Cacti 数据库密码，不通过环境变量传密
 - **系统要求**：面向 **Ubuntu 24.04 及以上**
-- **最新版本**：默认安装 Cacti **最新稳定版**（1.2.x 分支）；安装过程中可选安装开发版（develop）
+- **最新版本**：默认安装 Cacti **最新稳定版**（1.2.x 分支）；可通过环境变量 `CACTI_BRANCH=develop` 安装开发版
 - **Weathermap 插件**：脚本**自动安装** [Cacti Group 官方 Weathermap 插件](https://github.com/Cacti/plugin_weathermap)，安装后需在 Cacti 控制台 -> 插件管理 中启用
 - **一键升级**：`upgrade-cacti.sh` 可升级到最新代码，**不丢数据**（备份数据库与 config，保留 rra/plugins）
 
@@ -25,12 +25,12 @@ chmod +x install-cacti.sh
 sudo ./install-cacti.sh
 ```
 
-按提示输入：
+按提示输入（**直接回车即使用默认密码**）：
 
-1. **MySQL/MariaDB root 密码**（未设置则直接回车）
-2. **Cacti 数据库用户密码**（`cactiuser` 的密码，需输入两次）
-3. **是否安装开发版 Cacti**（回车=稳定版 1.2.x，输入 y=开发版 develop）
+1. **MySQL/MariaDB root 密码**（回车 = 默认 `root`）
+2. **Cacti 数据库用户 cactiuser 的密码**（回车 = 默认 `cactiuser`）
 
+也可输入自定义密码（会要求再输入一次确认）。  
 安装完成后在浏览器访问：**https://你的服务器IP/**（HTTP 会自动跳转到 HTTPS）。按向导完成初始化，默认登录 **admin / admin**，首次登录会强制改密。  
 若已安装 Weathermap 插件，请在 **控制台 -> 插件管理** 中启用。
 

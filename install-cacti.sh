@@ -71,41 +71,37 @@ echo "=============================================="
 echo "  Cacti 一键安装 (Ubuntu 24.04+)"
 echo "=============================================="
 echo ""
-echo "需要输入以下密码（安装过程中请勿使用环境变量）："
+echo "需要输入以下密码（直接回车则使用默认）："
+echo "  默认 root 密码: root"
+echo "  默认 cactiuser 密码: cactiuser"
 echo ""
 
-while true; do
-	read -s -p "MySQL/MariaDB root 密码（未设置则直接回车）: " MYSQL_ROOT_PASSWORD
-	echo ""
-	if [[ -z "$MYSQL_ROOT_PASSWORD" ]]; then
-		echo "  将使用无密码的 root 登录（仅限本机 socket）。"
-		break
-	fi
+read -s -p "MySQL/MariaDB root 密码（回车=root）: " MYSQL_ROOT_PASSWORD
+echo ""
+if [[ -z "$MYSQL_ROOT_PASSWORD" ]]; then
+	MYSQL_ROOT_PASSWORD="root"
+	echo "  使用默认 root 密码: root"
+else
 	read -s -p "请再输入一次 root 密码: " MYSQL_ROOT_PASS2
 	echo ""
-	if [[ "$MYSQL_ROOT_PASSWORD" == "$MYSQL_ROOT_PASS2" ]]; then
-		break
+	if [[ "$MYSQL_ROOT_PASSWORD" != "$MYSQL_ROOT_PASS2" ]]; then
+		echo "  两次输入不一致，退出。"
+		exit 1
 	fi
-	echo "  两次输入不一致，请重试。"
-done
-
-while true; do
-	read -s -p "Cacti 数据库用户 $CACTI_DB_USER 的密码: " CACTI_DB_PASS
-	echo ""
-	[[ -n "$CACTI_DB_PASS" ]] && break
-	echo "  密码不能为空，请重试。"
-done
-read -s -p "请再输入一次 Cacti 数据库密码: " CACTI_DB_PASS2
-echo ""
-if [[ "$CACTI_DB_PASS" != "$CACTI_DB_PASS2" ]]; then
-	echo "两次输入不一致，退出。"
-	exit 1
 fi
 
-# 可选：是否安装开发版（仅当未通过环境变量指定分支时询问）
-if [[ -z "${CACTI_BRANCH_SET:-}" ]] && [[ "${CACTI_BRANCH:-}" == "1.2.x" ]]; then
-	read -p "是否安装开发版 Cacti（develop）？默认安装稳定版（1.2.x）[y/N]: " -n 1 -r; echo
-	[[ $REPLY =~ ^[yY]$ ]] && CACTI_BRANCH="develop"
+read -s -p "Cacti 数据库用户 $CACTI_DB_USER 的密码（回车=cactiuser）: " CACTI_DB_PASS
+echo ""
+if [[ -z "$CACTI_DB_PASS" ]]; then
+	CACTI_DB_PASS="cactiuser"
+	echo "  使用默认 cactiuser 密码: cactiuser"
+else
+	read -s -p "请再输入一次 Cacti 数据库密码: " CACTI_DB_PASS2
+	echo ""
+	if [[ "$CACTI_DB_PASS" != "$CACTI_DB_PASS2" ]]; then
+		echo "  两次输入不一致，退出。"
+		exit 1
+	fi
 fi
 
 echo ""
@@ -115,14 +111,20 @@ echo "  Cacti 分支: $CACTI_BRANCH"
 echo "=============================================="
 
 # ------------------------- 执行 MySQL/MariaDB 客户端 -------------------------
-# Ubuntu 上可能只有 mariadb 命令，无 mysql；优先用 mysql（mariadb-client 会提供）
 set_mysql_cmd() {
+	# 确保已安装客户端（步骤 1 可能因静默安装未加入 PATH）
+	apt-get install -y mariadb-client &>/dev/null || true
+	hash -r 2>/dev/null || true
 	if command -v mysql &>/dev/null; then
 		MYSQL_CMD="mysql"
 	elif command -v mariadb &>/dev/null; then
 		MYSQL_CMD="mariadb"
+	elif [[ -x /usr/bin/mysql ]]; then
+		MYSQL_CMD="/usr/bin/mysql"
+	elif [[ -x /usr/bin/mariadb ]]; then
+		MYSQL_CMD="/usr/bin/mariadb"
 	else
-		echo "错误: 未找到 mysql 或 mariadb 客户端，请先安装 mariadb-client: apt-get install -y mariadb-client"
+		echo "错误: 无法找到 MySQL/MariaDB 客户端。请手动执行: apt-get update && apt-get install -y mariadb-client"
 		exit 1
 	fi
 }
@@ -196,6 +198,13 @@ fi
 
 # ------------------------- 4. 创建数据库与用户 -------------------------
 echo "[4/11] 配置数据库..."
+# 使用默认 root 密码时，若本机 MariaDB 尚未设置密码，先设为 root
+if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
+	set_mysql_cmd
+	if "$MYSQL_CMD" -u root -e "SELECT 1" &>/dev/null; then
+		"$MYSQL_CMD" -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+	fi
+fi
 run_mysql <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`$CACTI_DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$CACTI_DB_USER'@'localhost' IDENTIFIED BY '$CACTI_DB_PASS';
