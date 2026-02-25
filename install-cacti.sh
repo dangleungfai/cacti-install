@@ -553,43 +553,43 @@ fi
 
 # ------------------------- 11. 自动安装常用插件 -------------------------
 install_cacti_plugin() {
-	local name=\"$1\" repo=\"$2\" branch=\"$3\"
-	local PLUGINS_DIR=\"$CACTI_PATH/plugins\"
-	local DEST=\"$PLUGINS_DIR/$name\"
+	local name="$1" repo="$2" branch="$3"
+	local PLUGINS_DIR="$CACTI_PATH/plugins"
+	local DEST="$PLUGINS_DIR/$name"
 
-	mkdir -p \"$PLUGINS_DIR\"
+	mkdir -p "$PLUGINS_DIR"
 
-	if [[ -d \"$DEST/.git\" ]]; then
-		cd \"$DEST\"
-		git fetch origin \"$branch\" 2>/dev/null || true
-		git checkout \"$branch\" 2>/dev/null || git checkout -b \"$branch\" \"origin/$branch\" 2>/dev/null || true
-		git pull --ff-only origin \"$branch\" 2>/dev/null || true
+	if [[ -d "$DEST/.git" ]]; then
+		cd "$DEST"
+		git fetch origin "$branch" 2>/dev/null || true
+		git checkout "$branch" 2>/dev/null || git checkout -b "$branch" "origin/$branch" 2>/dev/null || true
+		git pull --ff-only origin "$branch" 2>/dev/null || true
 		cd - >/dev/null
 	else
-		rm -rf \"$DEST\"
-		git clone -b \"$branch\" --depth 1 \"$repo\" \"$DEST\"
+		rm -rf "$DEST"
+		git clone -b "$branch" --depth 1 "$repo" "$DEST"
 	fi
 
-	chown -R \"$CACTI_WEB_USER:$CACTI_WEB_USER\" \"$DEST\"
+	chown -R "$CACTI_WEB_USER:$CACTI_WEB_USER" "$DEST"
 }
 
-echo \"[11/11] 安装常用插件...\"
+echo "[11/11] 安装常用插件..."
 
-if [[ \"$INSTALL_CORE_PLUGINS\" == \"1\" ]]; then
-	install_cacti_plugin \"monitor\" \"$MONITOR_PLUGIN_REPO\" \"$MONITOR_PLUGIN_BRANCH\"
-	install_cacti_plugin \"thold\"   \"$THOLD_PLUGIN_REPO\"   \"$THOLD_PLUGIN_BRANCH\"
-	install_cacti_plugin \"syslog\"  \"$SYSLOG_PLUGIN_REPO\"  \"$SYSLOG_PLUGIN_BRANCH\"
-	install_cacti_plugin \"intropage\" \"$INTROPAGE_PLUGIN_REPO\" \"$INTROPAGE_PLUGIN_BRANCH\"
-	echo \"      已安装插件: monitor, thold, syslog, intropage（请在 控制台 -> 插件管理 中启用）\"
+if [[ "$INSTALL_CORE_PLUGINS" == "1" ]]; then
+	install_cacti_plugin "monitor"   "$MONITOR_PLUGIN_REPO"   "$MONITOR_PLUGIN_BRANCH"
+	install_cacti_plugin "thold"     "$THOLD_PLUGIN_REPO"     "$THOLD_PLUGIN_BRANCH"
+	install_cacti_plugin "syslog"    "$SYSLOG_PLUGIN_REPO"    "$SYSLOG_PLUGIN_BRANCH"
+	install_cacti_plugin "intropage" "$INTROPAGE_PLUGIN_REPO" "$INTROPAGE_PLUGIN_BRANCH"
+	echo "      已安装插件: monitor, thold, syslog, intropage（请在 控制台 -> 插件管理 中启用）"
 else
-	echo \"      跳过常用插件（INSTALL_CORE_PLUGINS=0）\"
+	echo "      跳过常用插件（INSTALL_CORE_PLUGINS=0）"
 fi
 
-if [[ \"$INSTALL_WEATHERMAP\" == \"1\" ]]; then
-	install_cacti_plugin \"weathermap\" \"$WEATHERMAP_PLUGIN_REPO\" \"$WEATHERMAP_PLUGIN_BRANCH\"
-	echo \"      已安装插件: weathermap（请在 控制台 -> 插件管理 中启用）\"
+if [[ "$INSTALL_WEATHERMAP" == "1" ]]; then
+	install_cacti_plugin "weathermap" "$WEATHERMAP_PLUGIN_REPO" "$WEATHERMAP_PLUGIN_BRANCH"
+	echo "      已安装插件: weathermap（请在 控制台 -> 插件管理 中启用）"
 else
-	echo \"      跳过 weathermap 插件（INSTALL_WEATHERMAP=0）\"
+	echo "      跳过 weathermap 插件（INSTALL_WEATHERMAP=0）"
 fi
 
 # ------------------------- 完成 -------------------------
