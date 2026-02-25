@@ -285,7 +285,13 @@ fi
 # ------------------------- 5. 导入 cacti.sql -------------------------
 echo "[5/11] 导入 Cacti 初始数据..."
 if [[ -f "$CACTI_PATH/cacti.sql" ]]; then
+	set +e
 	run_mysql "$CACTI_DB_NAME" < "$CACTI_PATH/cacti.sql"
+	_ret=$?
+	set -e
+	if [[ $_ret -ne 0 ]]; then
+		echo "      警告: 导入 cacti.sql 返回错误码 $_ret，请检查上方报错。尝试继续..."
+	fi
 else
 	echo "      未找到 cacti.sql，跳过。"
 fi
