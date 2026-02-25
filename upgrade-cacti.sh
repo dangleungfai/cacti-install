@@ -7,14 +7,14 @@
 #
 # 可选环境变量:
 #   CACTI_PATH    Cacti 安装路径 (默认: /var/www/html/cacti)
-#   CACTI_BRANCH 要升级到的分支 (默认: develop)
+#   CACTI_BRANCH  要升级到的分支 (默认: 1.2.x 稳定版)
 #   BACKUP_DIR    备份目录 (默认: /var/backups/cacti)
 #
 
 set -e
 
 CACTI_PATH="${CACTI_PATH:-/var/www/html/cacti}"
-CACTI_BRANCH="${CACTI_BRANCH:-develop}"
+CACTI_BRANCH="${CACTI_BRANCH:-1.2.x}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/cacti}"
 CACTI_WEB_USER="www-data"
 
@@ -124,6 +124,6 @@ echo "=============================================="
 echo "  升级完成"
 echo "=============================================="
 echo "  备份位置: $BACKUP_DIR"
-echo "  请使用浏览器访问 https://本机IP/ 确认界面与数据正常。"
+echo "  请使用浏览器访问 https://本机IP/cacti/ 确认界面与数据正常。"
 echo "  若出现升级向导，按页面提示完成即可。"
 echo "=============================================="

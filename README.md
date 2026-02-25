@@ -17,7 +17,7 @@
 - **系统要求**：面向 **Ubuntu 24.04 及以上**
 - **最新版本**：默认安装 Cacti **最新稳定版**（1.2.x 分支）；可通过环境变量 `CACTI_BRANCH=develop` 安装开发版
 - **Weathermap 插件**：脚本**自动安装** [Cacti Group 官方 Weathermap 插件](https://github.com/Cacti/plugin_weathermap)，安装后需在 Cacti 控制台 -> 插件管理 中启用
-- **一键升级**：`upgrade-cacti.sh` 可升级到最新代码，**不丢数据**（备份数据库与 config，保留 rra/plugins）
+- **一键升级**：`upgrade-cacti.sh` 可升级到**最新稳定版**（默认 1.2.x），**不丢数据**（备份数据库与 config，保留 rra/plugins）
 
 ## 要求
 
@@ -108,7 +108,7 @@ sudo ./upgrade-cacti.sh
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `CACTI_PATH` | /var/www/html/cacti | Cacti 安装路径 |
-| `CACTI_BRANCH` | develop | 要升级到的分支 |
+| `CACTI_BRANCH` | 1.2.x | 要升级到的分支（1.2.x=稳定版，develop=开发版） |
 | `BACKUP_DIR` | /var/backups/cacti | 备份目录 |
 
 升级过程会：
