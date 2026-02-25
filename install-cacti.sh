@@ -240,13 +240,16 @@ if [[ ! -x /usr/bin/rrdtool ]]; then
 	apt-get install -y rrdtool
 fi
 # Cacti 安装向导要求：PHP memory_limit>=400M、max_execution_time>=60（Apache 与 CLI 均设置）
-for ini_sapi in apache2 cli; do
-	PHP_INI="/etc/php/${PHP_VER}/${ini_sapi}/php.ini"
-	if [[ -f "$PHP_INI" ]]; then
-		sed -i 's/^;\?memory_limit\s*=.*/memory_limit = 400M/' "$PHP_INI"
-		sed -i 's/^;\?max_execution_time\s*=.*/max_execution_time = 60/' "$PHP_INI"
-	fi
-done
+set_php_ini_cacti() {
+	for ini_sapi in apache2 cli; do
+		local PHP_INI="/etc/php/${PHP_VER}/${ini_sapi}/php.ini"
+		[[ ! -f "$PHP_INI" ]] && continue
+		# 兼容带或不带前导 ; 与空格
+		sed -i '/^[ \t]*;*[ \t]*memory_limit[ \t]*=/s/.*/memory_limit = 400M/' "$PHP_INI"
+		sed -i '/^[ \t]*;*[ \t]*max_execution_time[ \t]*=/s/.*/max_execution_time = 60/' "$PHP_INI"
+	done
+}
+set_php_ini_cacti
 echo "      已设置 php.ini (apache2+cli): memory_limit=400M, max_execution_time=60"
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
@@ -477,6 +480,8 @@ chown -R "$CACTI_WEB_USER:$CACTI_WEB_USER" "$CACTI_PATH"
 for d in log rra cache resource scripts; do
 	[[ -d "$CACTI_PATH/$d" ]] && chown -R "$CACTI_WEB_USER:$CACTI_WEB_USER" "$CACTI_PATH/$d"
 done
+# 再次写入 php.ini 标橙参数，确保 Apache 加载的配置满足安装向导
+set_php_ini_cacti
 systemctl restart apache2 2>/dev/null || systemctl restart apache 2>/dev/null || true
 
 # 配置 snmpd 供 Cacti 本机 SNMP 轮询（安装向导可选模块提示）
