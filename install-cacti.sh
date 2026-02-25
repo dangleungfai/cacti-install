@@ -21,9 +21,20 @@ CACTI_WEB_USER="www-data"
 CACTI_PATH="/var/www/html/cacti"
 # 默认最新稳定版；可选 CACTI_BRANCH=develop 安装开发版
 CACTI_BRANCH="${CACTI_BRANCH:-1.2.x}"
+# 插件安装控制
+INSTALL_CORE_PLUGINS="${INSTALL_CORE_PLUGINS:-1}"
 INSTALL_WEATHERMAP="${INSTALL_WEATHERMAP:-1}"
 WEATHERMAP_PLUGIN_REPO="https://github.com/Cacti/plugin_weathermap.git"
 WEATHERMAP_PLUGIN_BRANCH="${WEATHERMAP_PLUGIN_BRANCH:-develop}"
+# 官方常用插件仓库
+THOLD_PLUGIN_REPO="https://github.com/Cacti/plugin_thold.git"
+THOLD_PLUGIN_BRANCH="${THOLD_PLUGIN_BRANCH:-develop}"
+MONITOR_PLUGIN_REPO="https://github.com/Cacti/plugin_monitor.git"
+MONITOR_PLUGIN_BRANCH="${MONITOR_PLUGIN_BRANCH:-develop}"
+SYSLOG_PLUGIN_REPO="https://github.com/Cacti/plugin_syslog.git"
+SYSLOG_PLUGIN_BRANCH="${SYSLOG_PLUGIN_BRANCH:-develop}"
+INTROPAGE_PLUGIN_REPO="https://github.com/Cacti/plugin_intropage.git"
+INTROPAGE_PLUGIN_BRANCH="${INTROPAGE_PLUGIN_BRANCH:-develop}"
 CACTI_DB_NAME="cacti"
 CACTI_DB_USER="cactiuser"
 SSL_DIR="/etc/ssl/cacti"
@@ -240,17 +251,32 @@ if [[ ! -x /usr/bin/rrdtool ]]; then
 	apt-get install -y rrdtool
 fi
 # Cacti 安装向导要求：PHP memory_limit>=400M、max_execution_time>=60（Apache 与 CLI 均设置）
+# 同时设置 date.timezone 与系统一致，避免 Cacti 界面时间显示错误
+PHP_TZ=$(cat /etc/timezone 2>/dev/null) || PHP_TZ=$(timedatectl show --property=Timezone --value 2>/dev/null)
+[[ -z "$PHP_TZ" ]] && PHP_TZ="Asia/Shanghai"
 set_php_ini_cacti() {
 	for ini_sapi in apache2 cli; do
 		local PHP_INI="/etc/php/${PHP_VER}/${ini_sapi}/php.ini"
 		[[ ! -f "$PHP_INI" ]] && continue
-		# 兼容带或不带前导 ; 与空格
 		sed -i '/^[ \t]*;*[ \t]*memory_limit[ \t]*=/s/.*/memory_limit = 400M/' "$PHP_INI"
 		sed -i '/^[ \t]*;*[ \t]*max_execution_time[ \t]*=/s/.*/max_execution_time = 60/' "$PHP_INI"
+		if grep -q '^[ \t]*;*[ \t]*date\.timezone[ \t]*=' "$PHP_INI" 2>/dev/null; then
+			sed -i '/^[ \t]*;*[ \t]*date\.timezone[ \t]*=/s#.*#date.timezone = '"$PHP_TZ"'#' "$PHP_INI"
+		else
+			echo "date.timezone = $PHP_TZ" >> "$PHP_INI"
+		fi
 	done
 }
 set_php_ini_cacti
-echo "      已设置 php.ini (apache2+cli): memory_limit=400M, max_execution_time=60"
+echo "      已设置 php.ini (apache2+cli): memory_limit=400M, max_execution_time=60, date.timezone=$PHP_TZ"
+
+# 启用 NTP 同步，保证系统时间与 Cacti 显示一致
+if timedatectl set-ntp true 2>/dev/null; then
+	echo "      已启用 NTP 时间同步"
+else
+	apt-get install -y systemd-timesyncd 2>/dev/null || true
+	timedatectl set-ntp true 2>/dev/null && echo "      已启用 NTP 时间同步" || true
+fi
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
 echo "[2/11] 启动 MariaDB..."
@@ -525,25 +551,45 @@ EOCRON
 	echo "      已创建 /etc/cron.d/cacti"
 fi
 
-# ------------------------- 11. 自动安装 Weathermap 插件 -------------------------
-if [[ "$INSTALL_WEATHERMAP" == "1" ]]; then
-	echo "[11/11] 安装 Weathermap 插件..."
-	PLUGINS_DIR="$CACTI_PATH/plugins"
-	mkdir -p "$PLUGINS_DIR"
-	if [[ -d "$PLUGINS_DIR/weathermap/.git" ]]; then
-		cd "$PLUGINS_DIR/weathermap"
-		git fetch origin "$WEATHERMAP_PLUGIN_BRANCH" 2>/dev/null || true
-		git checkout "$WEATHERMAP_PLUGIN_BRANCH" 2>/dev/null || git checkout -b "$WEATHERMAP_PLUGIN_BRANCH" "origin/$WEATHERMAP_PLUGIN_BRANCH" 2>/dev/null || true
-		git pull --ff-only origin "$WEATHERMAP_PLUGIN_BRANCH" 2>/dev/null || true
+# ------------------------- 11. 自动安装常用插件 -------------------------
+install_cacti_plugin() {
+	local name=\"$1\" repo=\"$2\" branch=\"$3\"
+	local PLUGINS_DIR=\"$CACTI_PATH/plugins\"
+	local DEST=\"$PLUGINS_DIR/$name\"
+
+	mkdir -p \"$PLUGINS_DIR\"
+
+	if [[ -d \"$DEST/.git\" ]]; then
+		cd \"$DEST\"
+		git fetch origin \"$branch\" 2>/dev/null || true
+		git checkout \"$branch\" 2>/dev/null || git checkout -b \"$branch\" \"origin/$branch\" 2>/dev/null || true
+		git pull --ff-only origin \"$branch\" 2>/dev/null || true
 		cd - >/dev/null
 	else
-		rm -rf "$PLUGINS_DIR/weathermap"
-		git clone -b "$WEATHERMAP_PLUGIN_BRANCH" --depth 1 "$WEATHERMAP_PLUGIN_REPO" "$PLUGINS_DIR/weathermap"
+		rm -rf \"$DEST\"
+		git clone -b \"$branch\" --depth 1 \"$repo\" \"$DEST\"
 	fi
-	chown -R "$CACTI_WEB_USER:$CACTI_WEB_USER" "$PLUGINS_DIR/weathermap"
-	echo "      已安装至 $PLUGINS_DIR/weathermap（请在 Cacti 控制台 -> 插件管理 中启用）"
+
+	chown -R \"$CACTI_WEB_USER:$CACTI_WEB_USER\" \"$DEST\"
+}
+
+echo \"[11/11] 安装常用插件...\"
+
+if [[ \"$INSTALL_CORE_PLUGINS\" == \"1\" ]]; then
+	install_cacti_plugin \"monitor\" \"$MONITOR_PLUGIN_REPO\" \"$MONITOR_PLUGIN_BRANCH\"
+	install_cacti_plugin \"thold\"   \"$THOLD_PLUGIN_REPO\"   \"$THOLD_PLUGIN_BRANCH\"
+	install_cacti_plugin \"syslog\"  \"$SYSLOG_PLUGIN_REPO\"  \"$SYSLOG_PLUGIN_BRANCH\"
+	install_cacti_plugin \"intropage\" \"$INTROPAGE_PLUGIN_REPO\" \"$INTROPAGE_PLUGIN_BRANCH\"
+	echo \"      已安装插件: monitor, thold, syslog, intropage（请在 控制台 -> 插件管理 中启用）\"
 else
-	echo "[11/11] 跳过 Weathermap 插件（INSTALL_WEATHERMAP=0）"
+	echo \"      跳过常用插件（INSTALL_CORE_PLUGINS=0）\"
+fi
+
+if [[ \"$INSTALL_WEATHERMAP\" == \"1\" ]]; then
+	install_cacti_plugin \"weathermap\" \"$WEATHERMAP_PLUGIN_REPO\" \"$WEATHERMAP_PLUGIN_BRANCH\"
+	echo \"      已安装插件: weathermap（请在 控制台 -> 插件管理 中启用）\"
+else
+	echo \"      跳过 weathermap 插件（INSTALL_WEATHERMAP=0）\"
 fi
 
 # ------------------------- 完成 -------------------------
@@ -560,8 +606,7 @@ echo ""
 echo "  若页面报 Connection to Cacti database failed，请在服务器执行："
 echo "    sudo apt-get install -y php${PHP_VER}-mysql && sudo systemctl restart apache2"
 echo ""
-if [[ "$INSTALL_WEATHERMAP" == "1" ]]; then
-	echo "  已安装 Weathermap 插件，请在 控制台 -> 插件管理 中启用后使用。"
-	echo ""
-fi
+echo "  已在 plugins/ 目录安装常用插件（monitor, thold, syslog, intropage, weathermap 等），"
+echo "  请在 控制台 -> 插件管理 中按需启用。"
+echo ""
 echo "=============================================="

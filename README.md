@@ -47,7 +47,7 @@ sudo ./install-cacti.sh
 - **HTTPS**：自动签发自签名证书，HTTP 请求重定向至 HTTPS
 - **访问路径**：https://服务器IP/cacti/
 - **版本**：默认安装 Cacti 1.2.x 稳定版；可选安装开发版
-- **Weathermap**：可选自动安装官方 Weathermap 插件
+- **常用插件**：可选自动安装官方插件（monitor、thold、syslog、intropage、weathermap 等）
 - **升级**：提供一键升级脚本，升级前自动备份数据库与配置
 
 ---
@@ -58,6 +58,7 @@ sudo ./install-cacti.sh
 |------|--------|------|
 | `CACTI_BRANCH` | 1.2.x | Cacti 分支（1.2.x 稳定版，develop 开发版） |
 | `USE_PHP7` | 未设置 | 设为 `1` 时在 Ubuntu 20.04/22.04 上使用 PHP 7.4 |
+| `INSTALL_CORE_PLUGINS` | 1 | 是否安装常用插件（monitor、thold、syslog、intropage）（1=是，0=否） |
 | `INSTALL_WEATHERMAP` | 1 | 是否安装 Weathermap 插件（1=是，0=否） |
 | `WEATHERMAP_PLUGIN_BRANCH` | develop | Weathermap 插件分支 |
 | `POLLER_METHOD` | cron | 轮询方式：cron 或 systemd |
@@ -102,6 +103,17 @@ sudo ./upgrade-cacti.sh
   请在服务器上执行：  
   `sudo apt-get install -y rrdtool`  
   然后用 `which rrdtool` 确认路径为 `/usr/bin/rrdtool`。
+
+- **Cacti 界面日期时间显示不对**  
+  安装脚本会按系统时区设置 PHP `date.timezone`。若仍不对，可手动设置系统时区后重写 php.ini，例如：  
+  `sudo timedatectl set-timezone Asia/Shanghai`  
+  然后修改 `/etc/php/8.3/apache2/php.ini` 中 `date.timezone = Asia/Shanghai`，执行 `sudo systemctl restart apache2`。
+
+- **系统 `date` 命令显示时间不对**  
+  安装脚本会启用 NTP 同步。若未生效，可执行：  
+  `sudo timedatectl set-ntp true`  
+  等待片刻后再次执行 `date` 查看。若仍不准，可安装 `chrony`：  
+  `sudo apt-get install -y chrony && sudo systemctl enable chrony && sudo systemctl start chrony`
 
 ---
 
