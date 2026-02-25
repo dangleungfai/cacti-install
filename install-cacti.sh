@@ -136,10 +136,20 @@ run_mysql() {
 	set_mysql_cmd
 	local conn_args=(-u root)
 	[[ -n "$MYSQL_ROOT_PASSWORD" ]] && conn_args+=(-p"$MYSQL_ROOT_PASSWORD")
+	local use_devnull=""
+	[[ "$1" == "-e" ]] && use_devnull="yes"
 	if [[ -n "$MYSQL_SOCKET" ]]; then
-		"$MYSQL_CMD" --socket="$MYSQL_SOCKET" "${conn_args[@]}" "$@"
+		if [[ -n "$use_devnull" ]]; then
+			"$MYSQL_CMD" --socket="$MYSQL_SOCKET" "${conn_args[@]}" "$@" < /dev/null
+		else
+			"$MYSQL_CMD" --socket="$MYSQL_SOCKET" "${conn_args[@]}" "$@"
+		fi
 	else
-		"$MYSQL_CMD" -h 127.0.0.1 "${conn_args[@]}" "$@"
+		if [[ -n "$use_devnull" ]]; then
+			"$MYSQL_CMD" -h 127.0.0.1 "${conn_args[@]}" "$@" < /dev/null
+		else
+			"$MYSQL_CMD" -h 127.0.0.1 "${conn_args[@]}" "$@"
+		fi
 	fi
 }
 
@@ -236,8 +246,8 @@ if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 	set_mysql_cmd
 	local try_conn=("$MYSQL_CMD" -u root)
 	[[ -n "$MYSQL_SOCKET" ]] && try_conn+=(--socket="$MYSQL_SOCKET") || try_conn+=(-h 127.0.0.1)
-	if "${try_conn[@]}" -e "SELECT 1" &>/dev/null; then
-		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+	if "${try_conn[@]}" -e "SELECT 1" < /dev/null &>/dev/null; then
+		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" < /dev/null 2>/dev/null || true
 	fi
 fi
 # 先测试连接，失败时错误直接输出到终端并退出
