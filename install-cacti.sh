@@ -130,10 +130,11 @@ set_mysql_cmd() {
 }
 run_mysql() {
 	set_mysql_cmd
+	# 使用 127.0.0.1 走 TCP，避免 socket 路径因系统不同而连接失败
 	if [[ -n "$MYSQL_ROOT_PASSWORD" ]]; then
-		"$MYSQL_CMD" -u root -p"$MYSQL_ROOT_PASSWORD" "$@"
+		"$MYSQL_CMD" -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" "$@"
 	else
-		"$MYSQL_CMD" -u root "$@"
+		"$MYSQL_CMD" -h 127.0.0.1 -u root "$@"
 	fi
 }
 
@@ -176,10 +177,18 @@ if ! install_php_pkgs; then
 		git openssl
 fi
 
-# ------------------------- 2. 启动 MariaDB -------------------------
+# ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
 echo "[2/11] 启动 MariaDB..."
 systemctl enable mariadb 2>/dev/null || systemctl enable mysql 2>/dev/null || true
 systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
+# 等待 socket 或服务就绪（最多约 20 秒）
+for i in 1 2 3 4 5 6 7 8 9 10; do
+	sleep 2
+	systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
+	[[ -S /run/mysqld/mysqld.sock ]] && break
+	[[ -S /var/run/mysqld/mysqld.sock ]] && break
+	[[ -S /tmp/mysql.sock ]] && break
+done
 
 # ------------------------- 3. 克隆 Cacti（最新版本）-------------------------
 echo "[3/11] 下载 Cacti ($CACTI_BRANCH)..."
@@ -201,8 +210,8 @@ echo "[4/11] 配置数据库..."
 # 使用默认 root 密码时，若本机 MariaDB 尚未设置密码，先设为 root
 if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 	set_mysql_cmd
-	if "$MYSQL_CMD" -u root -e "SELECT 1" &>/dev/null; then
-		"$MYSQL_CMD" -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+	if "$MYSQL_CMD" -h 127.0.0.1 -u root -e "SELECT 1" &>/dev/null; then
+		"$MYSQL_CMD" -h 127.0.0.1 -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
 	fi
 fi
 run_mysql <<EOSQL
