@@ -325,9 +325,9 @@ chown root:root "$SSL_DIR/cacti.key" "$SSL_DIR/cacti.crt"
 # ------------------------- 8. Apache：根路径即 Cacti + HTTP 跳 HTTPS -------------------------
 echo "[8/11] 配置 Apache（站点根为 Cacti，HTTP 跳转 HTTPS）..."
 a2enmod ssl rewrite 2>/dev/null || true
-
-# 默认站点改为：80 跳 443，443 的 DocumentRoot 为 Cacti
 CONF_D="/etc/apache2/sites-available"
+mkdir -p "$CONF_D"
+# 默认站点改为：80 跳 443，443 的 DocumentRoot 为 Cacti
 CONF_AVAILABLE="$CONF_D/cacti-default.conf"
 cat > "$CONF_AVAILABLE" <<'EOCONF'
 # HTTP -> HTTPS
