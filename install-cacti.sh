@@ -241,14 +241,16 @@ fi
 
 # ------------------------- 4. 创建数据库与用户 -------------------------
 echo "[4/11] 配置数据库..."
-# 使用默认 root 密码时，若本机 MariaDB 尚未设置密码，先设为 root
+# 使用默认 root 密码时，若本机 MariaDB 尚未设置密码，先设为 root（失败不退出，可能已有密码）
 if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
+	set +e
 	set_mysql_cmd
 	local try_conn=("$MYSQL_CMD" -u root)
 	[[ -n "$MYSQL_SOCKET" ]] && try_conn+=(--socket="$MYSQL_SOCKET") || try_conn+=(-h 127.0.0.1)
 	if "${try_conn[@]}" -e "SELECT 1" < /dev/null &>/dev/null; then
 		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" < /dev/null 2>/dev/null || true
 	fi
+	set -e
 fi
 # 先测试连接，失败时错误直接输出到终端并退出
 set +e
