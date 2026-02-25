@@ -344,19 +344,22 @@ else
 	echo "      未找到 cacti.sql，跳过。"
 fi
 
-# 填充 MySQL 时区表（Cacti 安装向导要求）
+# 填充 MySQL 时区表（Cacti 安装向导要求；失败不中断安装）
 echo "      填充 MySQL 时区表..."
 set_mysql_cmd
+set +e
 if command -v mariadb-tzinfo-to-sql &>/dev/null; then
-	mariadb-tzinfo-to-sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || true
+	mariadb-tzinfo-to-sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行: mariadb-tzinfo-to-sql /usr/share/zoneinfo | mysql -u root -p mysql"
 elif command -v mysql_tzinfo_to_sql &>/dev/null; then
-	mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || true
+	mysql_tzinfo_to_sql /usr/share/zoneinfo 2>/dev/null | run_mysql mysql 2>/dev/null && echo "      时区表已填充" || echo "      时区表填充跳过或失败，可安装后手动执行"
 fi
+set -e
 
 # MariaDB 推荐配置（满足 Cacti 安装向导：collation、innodb、heap/tmp 表）
 MARIADB_CONF_D="/etc/mysql/mariadb.conf.d"
 if [[ -d "$MARIADB_CONF_D" ]]; then
-	# innodb_buffer_pool_size：建议 25% 系统内存，至少 256M，此处取 512M（可按机器内存自行调大）
+	set +e
+	# innodb_buffer_pool_size：建议 25% 系统内存，至少 256M
 	MEM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo 0)
 	if [[ "$MEM_KB" -gt 0 ]]; then
 		MEM_M=$((MEM_KB / 1024))
@@ -378,6 +381,7 @@ tmp_table_size = 64M
 EOMYSQL
 	systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
 	echo "      已写入 MariaDB 推荐配置（innodb_buffer_pool=${POOL_M}M, heap/tmp=64M）并重启"
+	set -e
 fi
 
 # ------------------------- 6. 配置文件 config.php -------------------------
