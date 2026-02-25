@@ -112,7 +112,6 @@ echo "=============================================="
 
 # ------------------------- 执行 MySQL/MariaDB 客户端 -------------------------
 set_mysql_cmd() {
-	# 确保已安装客户端（步骤 1 可能因静默安装未加入 PATH）
 	apt-get install -y mariadb-client &>/dev/null || true
 	hash -r 2>/dev/null || true
 	if command -v mysql &>/dev/null; then
@@ -127,14 +126,20 @@ set_mysql_cmd() {
 		echo "错误: 无法找到 MySQL/MariaDB 客户端。请手动执行: apt-get update && apt-get install -y mariadb-client"
 		exit 1
 	fi
+	# 优先使用 socket（若存在），否则用 TCP
+	MYSQL_SOCKET=""
+	[[ -S /run/mysqld/mysqld.sock ]] && MYSQL_SOCKET="/run/mysqld/mysqld.sock"
+	[[ -z "$MYSQL_SOCKET" ]] && [[ -S /var/run/mysqld/mysqld.sock ]] && MYSQL_SOCKET="/var/run/mysqld/mysqld.sock"
+	[[ -z "$MYSQL_SOCKET" ]] && [[ -S /tmp/mysql.sock ]] && MYSQL_SOCKET="/tmp/mysql.sock"
 }
 run_mysql() {
 	set_mysql_cmd
-	# 使用 127.0.0.1 走 TCP，避免 socket 路径因系统不同而连接失败
-	if [[ -n "$MYSQL_ROOT_PASSWORD" ]]; then
-		"$MYSQL_CMD" -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" "$@"
+	local conn_args=(-u root)
+	[[ -n "$MYSQL_ROOT_PASSWORD" ]] && conn_args+=(-p"$MYSQL_ROOT_PASSWORD")
+	if [[ -n "$MYSQL_SOCKET" ]]; then
+		"$MYSQL_CMD" --socket="$MYSQL_SOCKET" "${conn_args[@]}" "$@"
 	else
-		"$MYSQL_CMD" -h 127.0.0.1 -u root "$@"
+		"$MYSQL_CMD" -h 127.0.0.1 "${conn_args[@]}" "$@"
 	fi
 }
 
@@ -179,15 +184,21 @@ fi
 
 # ------------------------- 2. 启动 MariaDB 并等待就绪 -------------------------
 echo "[2/11] 启动 MariaDB..."
+mkdir -p /run/mysqld /var/run/mysqld 2>/dev/null || true
+MYSQL_OWNER="mysql"
+id mysql &>/dev/null || MYSQL_OWNER="mariadb"
+chown -R "$MYSQL_OWNER:$MYSQL_OWNER" /run/mysqld /var/run/mysqld 2>/dev/null || true
+if [[ ! -d /var/lib/mysql/mysql ]]; then
+	mariadb-install-db --user="$MYSQL_OWNER" 2>/dev/null || mysql_install_db --user="$MYSQL_OWNER" 2>/dev/null || true
+fi
 systemctl enable mariadb 2>/dev/null || systemctl enable mysql 2>/dev/null || true
-systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
-# 等待 socket 或服务就绪（最多约 20 秒）
-for i in 1 2 3 4 5 6 7 8 9 10; do
+systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 	sleep 2
-	systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
 	[[ -S /run/mysqld/mysqld.sock ]] && break
 	[[ -S /var/run/mysqld/mysqld.sock ]] && break
 	[[ -S /tmp/mysql.sock ]] && break
+	systemctl restart mariadb 2>/dev/null || systemctl restart mysql 2>/dev/null || true
 done
 
 # ------------------------- 3. 克隆 Cacti（最新版本）-------------------------
@@ -210,8 +221,10 @@ echo "[4/11] 配置数据库..."
 # 使用默认 root 密码时，若本机 MariaDB 尚未设置密码，先设为 root
 if [[ "$MYSQL_ROOT_PASSWORD" == "root" ]]; then
 	set_mysql_cmd
-	if "$MYSQL_CMD" -h 127.0.0.1 -u root -e "SELECT 1" &>/dev/null; then
-		"$MYSQL_CMD" -h 127.0.0.1 -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+	local try_conn=("$MYSQL_CMD" -u root)
+	[[ -n "$MYSQL_SOCKET" ]] && try_conn+=(--socket="$MYSQL_SOCKET") || try_conn+=(-h 127.0.0.1)
+	if "${try_conn[@]}" -e "SELECT 1" &>/dev/null; then
+		"${try_conn[@]}" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
 	fi
 fi
 run_mysql <<EOSQL
