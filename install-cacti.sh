@@ -324,6 +324,10 @@ chown root:root "$SSL_DIR/cacti.key" "$SSL_DIR/cacti.crt"
 
 # ------------------------- 8. Apache：根路径即 Cacti + HTTP 跳 HTTPS -------------------------
 echo "[8/11] 配置 Apache（站点根为 Cacti，HTTP 跳转 HTTPS）..."
+if ! dpkg -s apache2 &>/dev/null; then
+	echo "      安装 apache2..."
+	apt-get install -y apache2
+fi
 a2enmod ssl rewrite 2>/dev/null || true
 CONF_D="/etc/apache2/sites-available"
 mkdir -p "$CONF_D"
